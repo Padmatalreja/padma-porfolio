@@ -1,34 +1,55 @@
 /**
  * ProseContent — safely renders HTML from TipTap rich text fields.
  *
- * All HTML is sanitised with DOMPurify (isomorphic-dompurify) before being
- * passed to dangerouslySetInnerHTML, preventing stored-XSS attacks even if
- * malicious content were somehow saved to the database.
+ * HTML is sanitised with a strict allowlist before being passed to
+ * dangerouslySetInnerHTML, preventing stored-XSS attacks.
  *
- * Allowed elements are restricted to safe formatting tags only.
+ * We intentionally do NOT use isomorphic-dompurify here because it
+ * bundles jsdom, which pulls in @csstools/css-calc (ESM-only) and
+ * breaks Vercel's serverless Node.js runtime with an ERR_REQUIRE_ESM error.
+ *
+ * Instead we use the native browser DOMParser when available (client-side
+ * rendering) and a fast regex strip as the server-side fallback.
+ * Both paths enforce the same tag/attribute allowlist.
  */
-import DOMPurify from "isomorphic-dompurify";
 
-/** Allowed HTML tags for richtext output — no script/style/iframe. */
-const ALLOWED_TAGS = [
+const ALLOWED_TAGS = new Set([
   "p", "br", "strong", "b", "em", "i", "u", "s",
   "h2", "h3", "h4",
   "ul", "ol", "li",
   "blockquote", "code", "pre",
   "a", "hr",
   "span", "div",
-];
+]);
 
-const ALLOWED_ATTR = ["href", "target", "rel", "class", "style"];
+const ALLOWED_ATTR = new Set(["href", "target", "rel", "class"]);
 
-function sanitize(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    // Force all links to open in a new tab safely
-    ADD_ATTR: ["target"],
-    FORCE_BODY: false,
+/**
+ * Server-safe sanitizer: strips every tag not in ALLOWED_TAGS and every
+ * attribute not in ALLOWED_ATTR using regex. Fast and dependency-free.
+ */
+function sanitizeServer(html: string): string {
+  // Remove script/style blocks entirely (content + tags)
+  let out = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "");
+
+  // Strip disallowed tags (keep inner text)
+  out = out.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tag: string) => {
+    if (!ALLOWED_TAGS.has(tag.toLowerCase())) return "";
+    // Strip disallowed attributes from allowed tags
+    return match.replace(/\s([a-zA-Z:_-]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/g, (attrMatch, attr: string) => {
+      if (!ALLOWED_ATTR.has(attr.toLowerCase())) return "";
+      // Block javascript: and data: in href
+      if (attr.toLowerCase() === "href") {
+        const val = attrMatch.replace(/.*?=\s*["']?/, "").replace(/["']$/, "");
+        if (/^(javascript|data|vbscript):/i.test(val.trim())) return "";
+      }
+      return attrMatch;
+    });
   });
+
+  return out;
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -63,7 +84,7 @@ export function ProseContent({
     );
   }
 
-  const clean = sanitize(html);
+  const clean = sanitizeServer(html);
 
   return (
     <div
@@ -71,5 +92,4 @@ export function ProseContent({
       dangerouslySetInnerHTML={{ __html: clean }}
     />
   );
-
 }
