@@ -3,9 +3,9 @@
  * Accepts a multipart form with a single `file` field.
  * Saves the file to /public/uploads/ and returns { url }.
  *
- * Files are stored locally. NOTE: local storage is not suitable for
- * serverless/Vercel deployments — migrate to Cloudinary or similar for
- * production. The CLOUDINARY_* env vars are stubbed in .env.example.
+ * Files are stored locally in /public/uploads/.
+ * NOTE: local storage is ephemeral on serverless platforms (e.g. Vercel).
+ * For persistent uploads, swap this route to use an external storage provider.
  *
  * Requires the admin session cookie — not publicly accessible.
  */

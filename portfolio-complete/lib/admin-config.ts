@@ -11,7 +11,7 @@ export type FieldType =
   | "select"
   | "file"
   | "multiple-files"
-  | "image-upload"; // Cloudinary drag-drop uploader
+  | "image-upload"; // drag-and-drop file uploader
 
 export type Field = {
   name: string;

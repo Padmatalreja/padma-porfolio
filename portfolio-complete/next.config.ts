@@ -13,9 +13,9 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      // img-src: self + data URIs + blob + Cloudinary CDN + res.cloudinary.com
-      // Add your specific CDN hostname(s) here instead of the wildcard https:.
-      "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com",
+      // img-src: self + data URIs + blob + trusted external image hosts.
+      // Add any additional CDN hostname(s) here instead of the wildcard https:.
+      "img-src 'self' data: blob: https://images.unsplash.com",
       "connect-src 'self' https: wss:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -39,10 +39,8 @@ const nextConfig: NextConfig = {
   },
   images: {
     // Restrict to specific trusted hostnames instead of the wildcard "**".
-    // Add additional hostnames here as needed (e.g. your Cloudinary cloud name).
+    // Add additional hostnames here as needed.
     remotePatterns: [
-      // Cloudinary CDN
-      { protocol: "https", hostname: "res.cloudinary.com" },
       // Unsplash (common placeholder source)
       { protocol: "https", hostname: "images.unsplash.com" },
       // Allow locally-served uploads (handled by Next.js static file serving)

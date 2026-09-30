@@ -207,7 +207,7 @@ Set `LOCAL_ADMIN_PASSWORD` to the output (e.g. `$2b$12$...`). The login action d
 - **Contact rate limiting** uses an atomic `ON CONFLICT DO UPDATE` upsert to prevent race conditions.
 - **IP hashing** — raw IP addresses are never stored; they are hashed with `CONTACT_RATE_LIMIT_SALT`.
 - **No secrets in client code** — all sensitive env vars are server-only.
-- **CSP** restricts image sources to known hostnames (Cloudinary, Unsplash). Extend `next.config.ts` `remotePatterns` and the CSP `img-src` directive if you add other image hosts.
+- **CSP** restricts image sources to known hostnames (e.g. Unsplash). Extend `next.config.ts` `remotePatterns` and the CSP `img-src` directive if you add other image hosts.
 
 ---
 
@@ -226,10 +226,7 @@ After deploying, verify:
 - `/admin/login` — login form visible
 - Authenticated `/admin/dashboard` — CMS loads correctly
 
-**Important:** Vercel's filesystem is ephemeral. Files uploaded via `/api/upload` are stored in `/public/uploads/` and will be **lost on redeploy**. For persistent uploads, integrate Cloudinary:
-
-- Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` in Vercel (stubs are in `.env.example`).
-- Update `/api/upload/route.ts` to use the Cloudinary Node SDK instead of `fs/promises.writeFile`.
+**Important:** Vercel's filesystem is ephemeral. Files uploaded via `/api/upload` are stored in `/public/uploads/` and will be **lost on redeploy**. For persistent uploads, replace the `/api/upload/route.ts` implementation with an external storage provider (e.g. S3, R2, or similar).
 
 ---
 
@@ -324,7 +321,7 @@ The session cookie requires HTTPS in production (`secure: true`). Ensure you are
 Wait 15 minutes or restart the server (the rate limiter is in-process). For production with multiple instances, implement a Redis-backed rate limiter.
 
 **Uploads disappear after redeployment**
-Expected behaviour on Vercel — the local filesystem is ephemeral. Migrate to Cloudinary (see section 9).
+Expected behaviour on Vercel — the local filesystem is ephemeral. Use an external storage provider for persistent uploads (see section 9).
 
 **`/api/health` returns 503**
 The database is unreachable. Check `DATABASE_URL`, Neon project status, and network connectivity.
