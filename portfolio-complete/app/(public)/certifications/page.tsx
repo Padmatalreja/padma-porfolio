@@ -28,7 +28,7 @@ export default async function CertificationsPage() {
           className="glow-orb"
           style={{
             width: "400px", height: "400px",
-            background: "radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgba(201,168,118,0.18) 0%, transparent 70%)",
             top: "-60px", right: "20%",
           }}
         />
@@ -73,7 +73,7 @@ export default async function CertificationsPage() {
                       </div>
                     ) : (
                       <div className="flex h-14 w-14 items-center justify-center rounded-xl"
-                        style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.25)" }}>
+                        style={{ background: "rgba(201,168,118,0.12)", border: "1px solid rgba(201,168,118,0.25)" }}>
                         <Award size={24} style={{ color: "var(--purple-light)" }} />
                       </div>
                     )}

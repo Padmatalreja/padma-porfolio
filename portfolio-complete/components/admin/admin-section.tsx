@@ -153,6 +153,7 @@ export function AdminSection({
                         <button
                           disabled={i === 0}
                           title="Move up"
+                          aria-label={`Move ${recordTitle(r, config)} up`}
                           className="flex h-8 w-8 items-center justify-center rounded-xl transition-all disabled:opacity-30"
                           style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
                         >
@@ -163,6 +164,7 @@ export function AdminSection({
                         <button
                           disabled={i === records.length - 1}
                           title="Move down"
+                          aria-label={`Move ${recordTitle(r, config)} down`}
                           className="flex h-8 w-8 items-center justify-center rounded-xl transition-all disabled:opacity-30"
                           style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
                         >
@@ -187,7 +189,8 @@ export function AdminSection({
                       }}
                     >
                       <button
-                        title="Delete"
+                        title={`Delete ${recordTitle(r, config)}`}
+                        aria-label={`Delete ${recordTitle(r, config)}`}
                         className="flex h-8 w-8 items-center justify-center rounded-xl transition-all"
                         style={{
                           background: "var(--error-bg)",

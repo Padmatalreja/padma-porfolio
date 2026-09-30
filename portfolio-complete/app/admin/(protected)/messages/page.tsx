@@ -194,8 +194,8 @@ export default async function MessagesPage({
                     <button
                       className="rounded-xl px-3 py-2 text-xs font-semibold transition-all"
                       style={{
-                        background: "rgba(124,58,237,0.1)",
-                        border: "1px solid rgba(124,58,237,0.25)",
+                        background: "rgba(201,168,118,0.1)",
+                        border: "1px solid rgba(201,168,118,0.25)",
                         color: "var(--purple-light)",
                       }}
                     >

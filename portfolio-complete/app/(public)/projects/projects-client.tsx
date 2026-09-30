@@ -67,8 +67,8 @@ export function ProjectsClient({ projects }: Props) {
               }}
               onMouseEnter={(e) => {
                 const el = e.currentTarget as HTMLElement;
-                el.style.borderColor = "rgba(124,58,237,0.45)";
-                el.style.boxShadow = "0 8px 32px rgba(124,58,237,0.15)";
+                el.style.borderColor = "rgba(201,168,118,0.45)";
+                el.style.boxShadow = "0 8px 32px rgba(201,168,118,0.15)";
                 el.style.transform = "translateY(-4px)";
               }}
               onMouseLeave={(e) => {
@@ -115,7 +115,7 @@ export function ProjectsClient({ projects }: Props) {
                     className="relative h-48 flex items-center justify-center"
                     style={{
                       background:
-                        "linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(0,229,255,0.08) 100%)",
+                        "linear-gradient(135deg, rgba(201,168,118,0.15) 0%, rgba(0,229,255,0.08) 100%)",
                     }}
                   >
                     <Code2 size={40} style={{ color: "var(--purple-mid)", opacity: 0.6 }} />

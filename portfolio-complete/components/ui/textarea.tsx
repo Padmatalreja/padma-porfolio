@@ -25,8 +25,8 @@ export const Textarea = ({
       ...style,
     }}
     onFocus={(e) => {
-      e.currentTarget.style.borderColor = "var(--purple-mid)";
-      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,58,237,0.15)";
+      e.currentTarget.style.borderColor = "var(--tan)";
+      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(201,168,118,0.2)";
       props.onFocus?.(e);
     }}
     onBlur={(e) => {

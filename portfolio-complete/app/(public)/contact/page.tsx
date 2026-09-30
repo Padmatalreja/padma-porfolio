@@ -139,8 +139,8 @@ export default async function ContactPage() {
                   <div
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                     style={{
-                      background: "rgba(124,58,237,0.1)",
-                      border: "1px solid rgba(124,58,237,0.25)",
+                      background: "rgba(201,168,118,0.1)",
+                      border: "1px solid rgba(201,168,118,0.25)",
                     }}
                   >
                     <MapPin size={20} style={{ color: "var(--purple-light)" }} />

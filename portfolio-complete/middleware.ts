@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyLocalSessionToken, COOKIE_NAME } from "@/lib/local-auth";
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const isAdminRoute =
     request.nextUrl.pathname.startsWith("/admin") &&
     !request.nextUrl.pathname.startsWith("/admin/login");

@@ -266,7 +266,8 @@ export function AdminShell({
             className="ml-auto rounded-lg p-1.5 transition-colors"
             style={{ color: ESP.textMuted }}
             onClick={() => setCompact(!compact)}
-            aria-label="Toggle sidebar"
+            aria-label={compact ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!compact}
           >
             {compact ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </button>

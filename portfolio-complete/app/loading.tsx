@@ -8,21 +8,21 @@ export default function Loading() {
         {/* Eyebrow */}
         <div
           className="h-3 w-24 rounded-full"
-          style={{ background: "rgba(124,58,237,0.2)" }}
+          style={{ background: "rgba(107,78,55,0.15)" }}
         />
         {/* Heading */}
         <div
           className="h-10 max-w-xl rounded-xl"
-          style={{ background: "rgba(255,255,255,0.06)" }}
+          style={{ background: "var(--bg-card)" }}
         />
         {/* Subheading */}
         <div
           className="h-4 max-w-2xl rounded-full"
-          style={{ background: "rgba(255,255,255,0.04)" }}
+          style={{ background: "var(--bg-elevated)" }}
         />
         <div
           className="h-4 max-w-lg rounded-full"
-          style={{ background: "rgba(255,255,255,0.04)" }}
+          style={{ background: "var(--bg-elevated)" }}
         />
 
         {/* Card grid */}

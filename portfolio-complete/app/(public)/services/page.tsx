@@ -76,8 +76,8 @@ export default async function ServicesPage() {
                     <div
                       className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl text-2xl"
                       style={{
-                        background: "rgba(124,58,237,0.1)",
-                        border: "1px solid rgba(124,58,237,0.25)",
+                        background: "rgba(201,168,118,0.1)",
+                        border: "1px solid rgba(201,168,118,0.25)",
                       }}
                     >
                       {(svc as any).icon}
@@ -110,14 +110,14 @@ export default async function ServicesPage() {
             className="relative mt-16 overflow-hidden rounded-2xl p-10 text-center"
             style={{
               background: "var(--bg-card)",
-              border: "1px solid rgba(124,58,237,0.25)",
+              border: "1px solid rgba(201,168,118,0.25)",
             }}
           >
             <div
               className="absolute inset-0 opacity-20"
               style={{
                 background:
-                  "radial-gradient(ellipse at center, rgba(124,58,237,0.4) 0%, transparent 70%)",
+                  "radial-gradient(ellipse at center, rgba(201,168,118,0.4) 0%, transparent 70%)",
               }}
             />
             <div className="relative z-10">

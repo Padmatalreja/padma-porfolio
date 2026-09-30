@@ -83,8 +83,8 @@ export function PublicationsClient({ items }: { items: Publication[] }) {
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLElement;
-              el.style.borderColor = "rgba(124,58,237,0.35)";
-              el.style.boxShadow = "0 4px 20px rgba(124,58,237,0.08)";
+              el.style.borderColor = "rgba(201,168,118,0.35)";
+              el.style.boxShadow = "0 4px 20px rgba(201,168,118,0.08)";
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget as HTMLElement;
@@ -103,8 +103,8 @@ export function PublicationsClient({ items }: { items: Publication[] }) {
                 <span
                   className="shrink-0 rounded-full px-3 py-0.5 text-xs font-semibold"
                   style={{
-                    background: "rgba(124,58,237,0.12)",
-                    border: "1px solid rgba(124,58,237,0.3)",
+                    background: "rgba(201,168,118,0.12)",
+                    border: "1px solid rgba(201,168,118,0.3)",
                     color: "var(--purple-light)",
                   }}
                 >

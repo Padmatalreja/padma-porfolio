@@ -135,8 +135,8 @@ export default async function EducationPage() {
                               <span
                                 className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
                                 style={{
-                                  background: "rgba(124,58,237,0.1)",
-                                  border: "1px solid rgba(124,58,237,0.3)",
+                                  background: "rgba(201,168,118,0.1)",
+                                  border: "1px solid rgba(201,168,118,0.3)",
                                   color: "var(--purple-light)",
                                 }}
                               >

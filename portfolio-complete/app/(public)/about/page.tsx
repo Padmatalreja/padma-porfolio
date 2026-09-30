@@ -66,11 +66,11 @@ export default async function AboutPage() {
         <div
           className="glow-orb"
           style={{
-            width: "500px",
-            height: "500px",
-            background: "radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%)",
-            top: "-80px",
-            right: "-80px",
+            width:      "500px",
+            height:     "500px",
+            background: "radial-gradient(circle, rgba(201,168,118,0.18) 0%, transparent 70%)",
+            top:        "-80px",
+            right:      "-80px",
           }}
         />
         <div className="relative z-10 mx-auto max-w-7xl px-5 py-16 lg:px-8">
@@ -201,16 +201,16 @@ export default async function AboutPage() {
                   className="rounded-2xl p-6"
                   style={{
                     background: "var(--bg-card)",
-                    border: "1px solid rgba(124,58,237,0.25)",
-                    boxShadow: "0 0 30px rgba(124,58,237,0.06)",
+                    border: "1px solid var(--border-accent)",
+                    boxShadow: "0 0 30px rgba(201,168,118,0.08)",
                   }}
                 >
                   <div className="mb-4 flex items-center gap-3">
                     <div
                       className="flex h-10 w-10 items-center justify-center rounded-xl"
                       style={{
-                        background: "rgba(124,58,237,0.15)",
-                        border: "1px solid rgba(124,58,237,0.3)",
+                        background: "rgba(201,168,118,0.12)",
+                        border: "1px solid rgba(201,168,118,0.3)",
                       }}
                     >
                       <Briefcase size={18} style={{ color: "var(--purple-light)" }} />

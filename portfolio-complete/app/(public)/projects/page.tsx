@@ -29,7 +29,7 @@ export default async function ProjectsPage() {
           style={{
             width: "500px",
             height: "500px",
-            background: "radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgba(201,168,118,0.18) 0%, transparent 70%)",
             top: "-80px",
             right: "-60px",
           }}

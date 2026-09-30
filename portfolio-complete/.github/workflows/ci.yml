@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-typecheck-build:
+    name: Lint · Typecheck · Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: portfolio-complete/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: portfolio-complete
+
+      - name: Lint
+        run: npm run lint
+        working-directory: portfolio-complete
+
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: portfolio-complete
+
+      - name: Build
+        run: npm run build
+        working-directory: portfolio-complete
+        env:
+          # Provide stub values so the build doesn't fail env checks.
+          # Real secrets are injected via Vercel environment variables.
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://stub:stub@localhost/stub' }}
+          LOCAL_ADMIN_EMAIL: ${{ secrets.LOCAL_ADMIN_EMAIL || 'admin@example.com' }}
+          LOCAL_ADMIN_PASSWORD: ${{ secrets.LOCAL_ADMIN_PASSWORD || 'stub-password-for-ci' }}
+          CONTACT_RATE_LIMIT_SALT: ${{ secrets.CONTACT_RATE_LIMIT_SALT || 'ci-stub-salt' }}
+          NEXT_PUBLIC_SITE_URL: 'https://example.com'
+          NODE_ENV: production

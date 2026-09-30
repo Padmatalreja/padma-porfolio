@@ -277,3 +277,73 @@ DO $$ DECLARE t text; BEGIN
     );
   END LOOP;
 END $$;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- MIGRATION 002 — Add missing columns and tables
+-- Safe to run on an existing database (all statements are IF NOT EXISTS / DO $$).
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- ── Add nav_links + footer_links to site_settings if not already there ───────
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'site_settings' AND column_name = 'nav_links'
+  ) THEN
+    ALTER TABLE public.site_settings ADD COLUMN nav_links jsonb NOT NULL DEFAULT '[]';
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'site_settings' AND column_name = 'footer_links'
+  ) THEN
+    ALTER TABLE public.site_settings ADD COLUMN footer_links jsonb NOT NULL DEFAULT '[]';
+  END IF;
+END $$;
+
+-- ── page_meta table ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.page_meta (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug             text NOT NULL UNIQUE,
+  meta_title       text,
+  meta_description text,
+  heading          text,
+  subheading       text,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_meta_slug ON public.page_meta (slug);
+
+-- ── contact_info table ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.contact_info (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone          text,
+  email          text,
+  address        text,
+  business_hours text,
+  social_links   jsonb NOT NULL DEFAULT '[]',
+  is_public      boolean NOT NULL DEFAULT true,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+-- ── login_attempts table (for persistent rate-limiting across restarts) ───────
+CREATE TABLE IF NOT EXISTS public.login_attempts (
+  email            text PRIMARY KEY,
+  attempt_count    integer NOT NULL DEFAULT 0,
+  window_started_at timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+-- ── updated_at triggers for new tables ───────────────────────────────────────
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['page_meta', 'contact_info', 'login_attempts'] LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS set_updated_at ON public.%I', t);
+    EXECUTE format(
+      'CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.%I
+       FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()', t
+    );
+  END LOOP;
+END $$;

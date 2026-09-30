@@ -5,9 +5,6 @@ import { hasNeonEnv } from "@/lib/env";
 import type { PortfolioData, Project, PageMeta, ContactInfo } from "@/types/portfolio";
 
 // React.cache() deduplicates calls within a single server render pass.
-// If getPortfolioData() is called twice on the same page (e.g. getProjectBySlug
-// + getPortfolioData both called in projects/[slug]/page.tsx), the DB is only
-// hit once — the second call returns the cached result from the same render.
 export const getPortfolioData = cache(async function getPortfolioData(): Promise<PortfolioData> {
   if (!hasNeonEnv()) return fallbackData;
 
@@ -42,14 +39,21 @@ export const getPortfolioData = cache(async function getPortfolioData(): Promise
       query`SELECT * FROM certifications WHERE is_public = true ORDER BY display_order ASC`,
       query`SELECT * FROM awards WHERE is_public = true ORDER BY display_order ASC`,
       query`SELECT * FROM social_links WHERE is_public = true ORDER BY display_order ASC`,
-      query`SELECT * FROM services WHERE is_public = true AND status = 'published' ORDER BY display_order ASC`.catch(() => []),
+      query`SELECT * FROM services WHERE is_public = true ORDER BY display_order ASC`.catch(() => []),
       query`SELECT * FROM testimonials WHERE is_public = true ORDER BY display_order ASC`.catch(() => []),
       query`SELECT * FROM page_meta`.catch(() => []),
       query`SELECT * FROM contact_info LIMIT 1`.catch(() => []),
     ]);
 
     const profile = profiles[0];
-    if (!profile) return fallbackData;
+    if (!profile) {
+      // Database is reachable but has no public profile row — this is a
+      // configuration issue, not a DB failure. Log it clearly.
+      console.warn(
+        "[getPortfolioData] No public profile found in database. Serving fallback data."
+      );
+      return fallbackData;
+    }
 
     const categoriesWithSkills = categories.map((cat: any) => ({
       ...cat,
@@ -72,7 +76,7 @@ export const getPortfolioData = cache(async function getPortfolioData(): Promise
       pageMetaMap[row.slug] = row as PageMeta;
     }
 
-    const contactInfoRaw = (contactInfoRows[0] as any) ?? null;
+    const contactInfoRaw  = (contactInfoRows[0] as any) ?? null;
     const contactInfo: ContactInfo | undefined = contactInfoRaw
       ? {
           ...contactInfoRaw,
@@ -82,13 +86,13 @@ export const getPortfolioData = cache(async function getPortfolioData(): Promise
         }
       : undefined;
 
-    const settingsRow = settings[0] as any;
-    const navLinks = Array.isArray(settingsRow?.nav_links)
+    const settingsRow  = settings[0] as any;
+    const navLinks     = Array.isArray(settingsRow?.nav_links)
       ? settingsRow.nav_links
       : typeof settingsRow?.nav_links === "string"
       ? JSON.parse(settingsRow.nav_links)
       : [];
-    const footerLinks = Array.isArray(settingsRow?.footer_links)
+    const footerLinks  = Array.isArray(settingsRow?.footer_links)
       ? settingsRow.footer_links
       : typeof settingsRow?.footer_links === "string"
       ? JSON.parse(settingsRow.footer_links)
@@ -98,7 +102,7 @@ export const getPortfolioData = cache(async function getPortfolioData(): Promise
       profile,
       settings: {
         ...(settingsRow || fallbackData.settings),
-        nav_links: navLinks,
+        nav_links:    navLinks,
         footer_links: footerLinks,
       },
       experiences,
@@ -111,10 +115,17 @@ export const getPortfolioData = cache(async function getPortfolioData(): Promise
       socialLinks,
       services,
       testimonials,
-      pageMeta: pageMetaMap,
+      pageMeta:    pageMetaMap,
       contactInfo,
     } as PortfolioData;
-  } catch {
+  } catch (err) {
+    // Log the real error so it's visible in server logs / error-tracking tools.
+    // Do NOT swallow it silently — the admin/operator needs to know the DB is
+    // unreachable before end-users notice degraded content.
+    console.error(
+      "[getPortfolioData] Database query failed — serving fallback data.",
+      err instanceof Error ? err.message : err
+    );
     return fallbackData;
   }
 });
@@ -125,12 +136,15 @@ export async function getProjectBySlug(slug: string): Promise<Project | null> {
 }
 
 /** Fetch page meta for a single slug — used in per-page generateMetadata(). */
-export const getPageMeta = cache(async function getPageMeta(slug: string): Promise<PageMeta | null> {
+export const getPageMeta = cache(async function getPageMeta(
+  slug: string
+): Promise<PageMeta | null> {
   if (!hasNeonEnv()) return null;
   try {
     const rows = await query(`SELECT * FROM page_meta WHERE slug = $1 LIMIT 1`, [slug]);
     return (rows[0] as PageMeta) || null;
-  } catch {
+  } catch (err) {
+    console.error(`[getPageMeta] Failed to fetch meta for slug "${slug}":`, err);
     return null;
   }
 });

@@ -1,13 +1,20 @@
 "use client";
 /**
  * ImageUpload
- * ──────────────────────────────────────────────────────────────────────
+ * ─────────────────────────────────────────────────────────────────────────────
  * Drag-and-drop / click-to-browse file uploader for the admin panel.
  * Uploads to /api/upload which saves files locally in /public/uploads/.
  * Stores the returned URL in a hidden <input> so the parent server-action
  * form picks it up on save.
  *
  * Users can also paste a URL directly if they prefer to use a remote URL.
+ *
+ * FIX: previously had TWO separate <input type="file"> elements — one inside
+ * the drop zone and one in the action row — both sharing the same ref.
+ * The ref only pointed at the last rendered element so the drop-zone click
+ * and the "Replace file" button triggered different file pickers.
+ * Fixed by keeping a SINGLE hidden file input always in the DOM and removing
+ * the duplicate inside the drop-zone area.
  */
 import { useCallback, useRef, useState } from "react";
 import { Upload, Link2, X, Loader2, FileText, ImageIcon } from "lucide-react";
@@ -25,12 +32,19 @@ type UploadState =
   | { status: "done"; url: string }
   | { status: "error"; message: string };
 
-export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf = false }: Props) {
-  const [url, setUrl] = useState(defaultUrl);
+export function ImageUpload({
+  name,
+  defaultUrl = "",
+  accept = "image/*",
+  isPdf = false,
+}: Props) {
+  const [url, setUrl]             = useState(defaultUrl);
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteValue, setPasteValue] = useState(defaultUrl);
-  const [upload, setUpload] = useState<UploadState>({ status: "idle" });
-  const [dragOver, setDragOver] = useState(false);
+  const [upload, setUpload]       = useState<UploadState>({ status: "idle" });
+  const [dragOver, setDragOver]   = useState(false);
+
+  // Single file input ref — shared by drop zone click AND action-row buttons
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const doUpload = useCallback(async (file: File) => {
@@ -40,7 +54,7 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
     fd.set("folder", "portfolio");
 
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const res  = await fetch("/api/upload", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `Upload failed (${res.status})`);
       setUrl(json.url);
@@ -48,7 +62,7 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
       setUpload({ status: "done", url: json.url });
     } catch (err: unknown) {
       setUpload({
-        status: "error",
+        status:  "error",
         message: err instanceof Error ? err.message : "Upload failed.",
       });
     }
@@ -85,14 +99,15 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const openFilePicker = () => fileInputRef.current?.click();
+
   const isLoading = upload.status === "uploading";
 
-  // ── Shared border style ──────────────────────────────────────────────
   const boxStyle: React.CSSProperties = {
-    background: dragOver ? "rgba(201,168,118,0.08)" : "var(--bg-elevated)",
-    border: `1.5px dashed ${dragOver ? "rgba(201,168,118,0.6)" : "var(--border)"}`,
-    borderRadius: "0.75rem",
-    transition: "all 0.15s",
+    background:    dragOver ? "rgba(201,168,118,0.08)" : "var(--bg-elevated)",
+    border:        `1.5px dashed ${dragOver ? "rgba(201,168,118,0.6)" : "var(--border)"}`,
+    borderRadius:  "0.75rem",
+    transition:    "all 0.15s",
   };
 
   return (
@@ -100,14 +115,20 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
       {/* Hidden value input — read by the server action */}
       <input type="hidden" name={name} value={url} />
 
+      {/* ── Single hidden file input — the ONLY file picker in this component ── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+
       {/* ── Preview ── */}
       {url && !pasteMode && (
         <div
           className="group relative flex items-center gap-3 rounded-xl p-3"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
         >
           {isPdf ? (
             <div
@@ -129,10 +150,7 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
             />
           )}
           <div className="min-w-0 flex-1">
-            <p
-              className="truncate text-xs font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
+            <p className="truncate text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
               {url.split("/").pop() || url}
             </p>
             <a
@@ -149,6 +167,7 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
             type="button"
             onClick={clearFile}
             title="Remove"
+            aria-label="Remove file"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-60 transition-opacity hover:opacity-100"
             style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
           >
@@ -157,14 +176,18 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
         </div>
       )}
 
-      {/* ── Drop zone ── */}
+      {/* ── Drop zone (shown when no file is set and not in paste mode) ── */}
       {!url && !pasteMode && (
         <div
           style={boxStyle}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={openFilePicker}
+          role="button"
+          tabIndex={0}
+          aria-label={`Upload ${isPdf ? "PDF" : "image"}`}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFilePicker(); }}
           className="flex cursor-pointer flex-col items-center justify-center gap-2 px-4 py-8 text-center"
         >
           {isLoading ? (
@@ -188,13 +211,6 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
               {isPdf ? "PDF, max 10 MB" : "JPEG, PNG, WebP, AVIF, max 6 MB"}
             </p>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={accept}
-            className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
-          />
         </div>
       )}
 
@@ -204,9 +220,10 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
           className="rounded-lg px-3 py-2 text-xs font-semibold"
           style={{
             background: "var(--error-bg)",
-            border: "1px solid var(--error-border)",
-            color: "var(--error)",
+            border:     "1px solid var(--error-border)",
+            color:      "var(--error)",
           }}
+          role="alert"
         >
           {upload.message}
         </p>
@@ -220,16 +237,17 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
             value={pasteValue}
             onChange={(e) => setPasteValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); applyPastedUrl(); }
+              if (e.key === "Enter")  { e.preventDefault(); applyPastedUrl(); }
               if (e.key === "Escape") setPasteMode(false);
             }}
             placeholder="https://..."
+            aria-label="Paste a URL"
             className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
             style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--tan)",
-              color: "var(--text-primary)",
-              boxShadow: "0 0 0 3px rgba(201,168,118,0.18)",
+              background:  "var(--bg-elevated)",
+              border:      "1px solid var(--tan)",
+              color:       "var(--text-primary)",
+              boxShadow:   "0 0 0 3px rgba(201,168,118,0.18)",
             }}
           />
           <button
@@ -255,12 +273,12 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
           {!url && (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={openFilePicker}
               className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
               style={{
                 background: "rgba(201,168,118,0.1)",
-                border: "1px solid rgba(201,168,118,0.28)",
-                color: "var(--tan-dark)",
+                border:     "1px solid rgba(201,168,118,0.28)",
+                color:      "var(--tan-dark)",
               }}
             >
               <Upload size={13} />
@@ -273,8 +291,8 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
             className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
             style={{
               background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
+              border:     "1px solid var(--border)",
+              color:      "var(--text-secondary)",
             }}
           >
             <Link2 size={13} />
@@ -283,26 +301,18 @@ export function ImageUpload({ name, defaultUrl = "", accept = "image/*", isPdf =
           {url && (
             <button
               type="button"
-              onClick={() => { clearFile(); fileInputRef.current?.click(); }}
+              onClick={() => { clearFile(); openFilePicker(); }}
               className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all"
               style={{
                 background: "rgba(201,168,118,0.1)",
-                border: "1px solid rgba(201,168,118,0.28)",
-                color: "var(--tan-dark)",
+                border:     "1px solid rgba(201,168,118,0.28)",
+                color:      "var(--tan-dark)",
               }}
             >
               <Upload size={13} />
               Replace file
             </button>
           )}
-          {/* Hidden file input always available */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={accept}
-            className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
-          />
         </div>
       )}
     </div>

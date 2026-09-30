@@ -232,6 +232,9 @@ export default async function HomePage() {
       ══════════════════════════════════════════════════════════════ */}
       <div
         className="marquee-strip overflow-hidden"
+        role="marquee"
+        aria-label="Specialisations ticker"
+        aria-roledescription="scrolling list of specialisations"
         style={{
           borderTop:    "1px solid var(--border)",
           borderBottom: "1px solid var(--border)",

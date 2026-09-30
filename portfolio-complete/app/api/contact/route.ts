@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const json = await request.json();
+    const json   = await request.json();
     const parsed = contactSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
@@ -29,64 +29,63 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Message received." });
     }
 
+    // ── IP hash ────────────────────────────────────────────────────────────
+    // Only trust x-forwarded-for when running behind a known reverse proxy.
+    // We take the first IP in the chain and hash it with a salt so the raw
+    // address is never stored.
     const forwarded =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const salt = process.env.CONTACT_RATE_LIMIT_SALT || "portfolio-contact";
+    const salt   = process.env.CONTACT_RATE_LIMIT_SALT || "portfolio-contact";
     const ipHash = createHash("sha256")
       .update(`${salt}:${forwarded}`)
       .digest("hex");
 
-    // ── Rate-limiting ────────────────────────────────────────────────────────
-    const existing = await query`
-      SELECT request_count, window_started_at
-      FROM contact_rate_limits
-      WHERE ip_hash = ${ipHash}
-      LIMIT 1
-    `;
+    // ── Rate-limiting — atomic upsert prevents race conditions ────────────
+    // Uses INSERT ... ON CONFLICT to atomically create or update the rate
+    // limit record. Two simultaneous first-time requests from the same IP
+    // both hit the INSERT; one wins and the other updates — no lost increment.
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-    if (existing.length === 0) {
-      await query`
-        INSERT INTO contact_rate_limits (ip_hash, window_started_at, request_count)
-        VALUES (${ipHash}, now(), 1)
-        ON CONFLICT (ip_hash) DO NOTHING
-      `;
-    } else {
-      const row = existing[0];
-      const windowStart = new Date(row.window_started_at as string);
-      const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    // First, reset expired windows atomically
+    await query(
+      `UPDATE contact_rate_limits
+       SET window_started_at = now(), request_count = 0, updated_at = now()
+       WHERE ip_hash = $1 AND window_started_at < $2`,
+      [ipHash, hourAgo]
+    );
 
-      if (windowStart < hourAgo) {
-        await query`
-          UPDATE contact_rate_limits
-          SET window_started_at = now(), request_count = 1, updated_at = now()
-          WHERE ip_hash = ${ipHash}
-        `;
-      } else if ((row.request_count as number) >= 5) {
-        return NextResponse.json(
-          { message: "Too many messages were sent recently. Please try again later." },
-          { status: 429 }
-        );
-      } else {
-        await query`
-          UPDATE contact_rate_limits
-          SET request_count = request_count + 1, updated_at = now()
-          WHERE ip_hash = ${ipHash}
-        `;
-      }
+    // Atomic upsert: insert with count=1 or increment if already exists
+    const result = await query(
+      `INSERT INTO contact_rate_limits (ip_hash, window_started_at, request_count)
+       VALUES ($1, now(), 1)
+       ON CONFLICT (ip_hash) DO UPDATE
+         SET request_count = contact_rate_limits.request_count + 1,
+             updated_at    = now()
+       RETURNING request_count`,
+      [ipHash]
+    );
+
+    const requestCount = Number((result[0] as any)?.request_count ?? 1);
+    if (requestCount > 5) {
+      return NextResponse.json(
+        { message: "Too many messages were sent recently. Please try again later." },
+        { status: 429 }
+      );
     }
 
-    // ── Insert message ────────────────────────────────────────────────────────
+    // ── Insert message ─────────────────────────────────────────────────────
     const userAgent = request.headers.get("user-agent")?.slice(0, 500) || null;
-    await query`
-      INSERT INTO contact_messages (name, email, subject, message, user_agent)
-      VALUES (
-        ${parsed.data.name.slice(0, 100)},
-        ${parsed.data.email.slice(0, 200)},
-        ${parsed.data.subject.slice(0, 160)},
-        ${parsed.data.message.slice(0, 5000)},
-        ${userAgent}
-      )
-    `;
+    await query(
+      `INSERT INTO contact_messages (name, email, subject, message, user_agent)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        parsed.data.name.slice(0, 100),
+        parsed.data.email.slice(0, 200),
+        parsed.data.subject.slice(0, 160),
+        parsed.data.message.slice(0, 5000),
+        userAgent,
+      ]
+    );
 
     return NextResponse.json({ message: "Thanks — your message was sent successfully." });
   } catch {

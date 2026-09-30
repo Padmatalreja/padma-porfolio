@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { query } from "@/lib/db";
+import { query, queryWithPool } from "@/lib/db";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { sectionConfigs } from "@/lib/admin-config";
@@ -11,7 +11,6 @@ import { COOKIE_NAME } from "@/lib/local-auth";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Revalidate every public-facing route so admin changes appear immediately.
-// Called after every content mutation.
 // ─────────────────────────────────────────────────────────────────────────────
 function revalidateAllPublicPaths() {
   const publicPaths = [
@@ -30,7 +29,6 @@ function revalidateAllPublicPaths() {
   for (const p of publicPaths) {
     revalidatePath(p);
   }
-  // Also revalidate layout (shared header/footer)
   revalidatePath("/", "layout");
 }
 
@@ -64,20 +62,24 @@ function validUrl(value: string): string | null {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function dbInsert(table: string, payload: Record<string, unknown>): Promise<string> {
-  const keys = Object.keys(payload);
+  const keys   = Object.keys(payload);
   const values = Object.values(payload);
-  const cols = keys.map((k) => `"${k}"`).join(", ");
+  const cols   = keys.map((k) => `"${k}"`).join(", ");
   const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
-  const sql = `INSERT INTO "${table}" (${cols}) VALUES (${placeholders}) RETURNING id`;
+  const sql  = `INSERT INTO "${table}" (${cols}) VALUES (${placeholders}) RETURNING id`;
   const rows = await query(sql, values);
   return (rows[0] as any).id as string;
 }
 
-async function dbUpdate(table: string, id: string, payload: Record<string, unknown>): Promise<void> {
-  const keys = Object.keys(payload);
+async function dbUpdate(
+  table: string,
+  id: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const keys   = Object.keys(payload);
   const values = Object.values(payload);
-  const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
-  const sql = `UPDATE "${table}" SET ${sets}, updated_at = now() WHERE id = $${keys.length + 1}`;
+  const sets   = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
+  const sql    = `UPDATE "${table}" SET ${sets}, updated_at = now() WHERE id = $${keys.length + 1}`;
   await query(sql, [...values, id]);
 }
 
@@ -91,7 +93,7 @@ export async function saveRecord(section: string, formData: FormData) {
   const config = sectionConfigs[section];
   if (!config) throw new Error("Invalid admin section.");
 
-  const id = cleanString(formData.get("id"), 80);
+  const id      = cleanString(formData.get("id"), 80);
   const payload: Record<string, unknown> = {};
 
   for (const field of config.fields) {
@@ -152,7 +154,10 @@ export async function saveRecord(section: string, formData: FormData) {
     }
   } else {
     if (config.orderable) {
-      const maxRow = await query(`SELECT MAX(display_order) AS max_order FROM "${config.table}"`, []);
+      const maxRow = await query(
+        `SELECT MAX(display_order) AS max_order FROM "${config.table}"`,
+        []
+      );
       payload.display_order = Number((maxRow[0] as any).max_order || 0) + 1;
     }
     recordId = await dbInsert(config.table, payload);
@@ -168,7 +173,11 @@ export async function saveRecord(section: string, formData: FormData) {
 // deleteRecord
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function deleteRecord(section: string, id: string, _formData?: FormData) {
+export async function deleteRecord(
+  section: string,
+  id: string,
+  _formData?: FormData
+) {
   await requireAdmin();
   const config = sectionConfigs[section];
   if (!config || config.singleton) throw new Error("This record cannot be deleted here.");
@@ -182,7 +191,7 @@ export async function deleteRecord(section: string, id: string, _formData?: Form
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// moveRecord
+// moveRecord — swaps display_order in a single atomic transaction
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function moveRecord(
@@ -205,25 +214,37 @@ export async function moveRecord(
   const neighborRows =
     direction === "up"
       ? await query(
-          `SELECT id, display_order FROM "${config.table}" WHERE display_order < $1 ORDER BY display_order DESC LIMIT 1`,
+          `SELECT id, display_order FROM "${config.table}"
+           WHERE display_order < $1 ORDER BY display_order DESC LIMIT 1`,
           [current.display_order]
         )
       : await query(
-          `SELECT id, display_order FROM "${config.table}" WHERE display_order > $1 ORDER BY display_order ASC LIMIT 1`,
+          `SELECT id, display_order FROM "${config.table}"
+           WHERE display_order > $1 ORDER BY display_order ASC LIMIT 1`,
           [current.display_order]
         );
 
   if (!neighborRows.length) return;
   const neighbor = neighborRows[0] as { id: string; display_order: number };
 
-  await query(
-    `UPDATE "${config.table}" SET display_order = $1, updated_at = now() WHERE id = $2`,
-    [neighbor.display_order, current.id]
-  );
-  await query(
-    `UPDATE "${config.table}" SET display_order = $1, updated_at = now() WHERE id = $2`,
-    [current.display_order, neighbor.id]
-  );
+  // ── Atomic swap in a single transaction ───────────────────────────────────
+  await queryWithPool(async (client) => {
+    await client.query("BEGIN");
+    try {
+      await client.query(
+        `UPDATE "${config.table}" SET display_order = $1, updated_at = now() WHERE id = $2`,
+        [neighbor.display_order, current.id]
+      );
+      await client.query(
+        `UPDATE "${config.table}" SET display_order = $1, updated_at = now() WHERE id = $2`,
+        [current.display_order, neighbor.id]
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    }
+  });
 
   revalidatePath(`/admin/${section}`);
   revalidateAllPublicPaths();
@@ -243,9 +264,16 @@ export async function logoutAction(_formData?: FormData) {
 // Contact message actions
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function setMessageStatus(id: string, status: "read" | "unread", _formData?: FormData) {
+export async function setMessageStatus(
+  id: string,
+  status: "read" | "unread",
+  _formData?: FormData
+) {
   await requireAdmin();
-  await query(`UPDATE contact_messages SET status = $1, updated_at = now() WHERE id = $2`, [status, id]);
+  await query(
+    `UPDATE contact_messages SET status = $1, updated_at = now() WHERE id = $2`,
+    [status, id]
+  );
   revalidatePath("/admin/messages");
 }
 
@@ -266,11 +294,16 @@ export async function deleteProjectImage(id: string, _formData?: FormData) {
   revalidateAllPublicPaths();
 }
 
-export async function addProjectImageUrl(projectId: string, imageUrl: string, _formData?: FormData) {
+export async function addProjectImageUrl(
+  projectId: string,
+  imageUrl: string,
+  _formData?: FormData
+) {
   await requireAdmin();
   if (!imageUrl) throw new Error("Image URL is required.");
   await query(
-    `INSERT INTO project_images (project_id, image_url, display_order, is_public) VALUES ($1, $2, 0, true)`,
+    `INSERT INTO project_images (project_id, image_url, display_order, is_public)
+     VALUES ($1, $2, 0, true)`,
     [projectId, imageUrl]
   );
   revalidatePath("/admin/projects");
@@ -283,9 +316,9 @@ export async function addProjectImageUrl(projectId: string, imageUrl: string, _f
 
 export async function addMediaUrl(formData: FormData) {
   await requireAdmin();
-  const url = cleanString(formData.get("url"), 2000);
+  const url      = cleanString(formData.get("url"), 2000);
   const fileName = cleanString(formData.get("file_name"), 255) || "media";
-  const bucket = cleanString(formData.get("bucket"), 40) || "external";
+  const bucket   = cleanString(formData.get("bucket"), 40) || "external";
   if (!url) throw new Error("URL is required.");
   await query(
     `INSERT INTO media (bucket, file_name, url, is_public) VALUES ($1, $2, $3, true)`,
@@ -302,31 +335,30 @@ export async function deleteMedia(id: string, _formData?: FormData) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Contact Info singleton action
+// No DDL is run here — the contact_info table is created by the schema script.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function saveContactInfo(formData: FormData) {
   await requireAdmin();
 
-  const phone          = cleanString(formData.get("phone"), 60) || null;
-  const address        = cleanString(formData.get("address"), 500) || null;
-  const businessHours  = cleanString(formData.get("business_hours"), 500) || null;
-  const isPublic       = formData.get("is_public") === "on";
+  const phone         = cleanString(formData.get("phone"), 60) || null;
+  const address       = cleanString(formData.get("address"), 500) || null;
+  const businessHours = cleanString(formData.get("business_hours"), 500) || null;
+  const isPublic      = formData.get("is_public") === "on";
 
-  // Email validation
   const rawEmail = cleanString(formData.get("email"), 200);
   let email: string | null = null;
   if (rawEmail) {
     email = z.string().email().max(200).parse(rawEmail);
   }
 
-  // Parse social links: "Platform | https://url" one per line
-  const socialRaw = cleanString(formData.get("social_links_text"), 5000);
+  const socialRaw    = cleanString(formData.get("social_links_text"), 5000);
   const social_links = socialRaw
     .split(/\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const sep = line.indexOf("|");
+      const sep      = line.indexOf("|");
       if (sep === -1) return null;
       const platform = line.slice(0, sep).trim();
       const url      = line.slice(sep + 1).trim();
@@ -340,22 +372,6 @@ export async function saveContactInfo(formData: FormData) {
     })
     .filter((x): x is { platform: string; url: string } => x !== null)
     .slice(0, 20);
-
-  // Ensure the table exists before querying — create it on first use if migration wasn't run
-  await query(
-    `CREATE TABLE IF NOT EXISTS contact_info (
-      id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      phone          text,
-      email          text,
-      address        text,
-      business_hours text,
-      social_links   jsonb NOT NULL DEFAULT '[]',
-      is_public      boolean NOT NULL DEFAULT true,
-      created_at     timestamptz NOT NULL DEFAULT now(),
-      updated_at     timestamptz NOT NULL DEFAULT now()
-    )`,
-    []
-  );
 
   const existing = await query(`SELECT id FROM contact_info LIMIT 1`, []);
 

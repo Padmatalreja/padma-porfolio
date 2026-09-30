@@ -7,11 +7,14 @@
  *
  * Query params:
  *   url  — the /uploads/... path stored in profile.resume_url
- *   name — desired download filename (optional, falls back to profile full_name)
+ *   name — desired download filename (optional, falls back to file basename)
+ *
+ * Security: resolves the final path and confirms it is strictly inside
+ * /public/uploads/ to prevent path-traversal attacks.
  */
 import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
-import { join, extname } from "path";
+import { join, extname, resolve, sep } from "path";
 
 export const runtime = "nodejs";
 
@@ -37,12 +40,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid file path." }, { status: 400 });
   }
 
-  const ext = extname(fileUrl) || ".pdf";
+  // ── Strict path-traversal guard ───────────────────────────────────────────
+  // Resolve the absolute path and ensure it is inside the uploads directory.
+  // path.join normalises ".." sequences, so we must verify AFTER resolution.
+  const uploadsRoot = resolve(process.cwd(), "public", "uploads");
+  // Strip the leading "/" and resolve relative to public/
+  const filePath = resolve(process.cwd(), "public", fileUrl.replace(/^\//, ""));
+
+  if (!filePath.startsWith(uploadsRoot + sep) && filePath !== uploadsRoot) {
+    return NextResponse.json({ error: "Invalid file path." }, { status: 400 });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const ext = extname(filePath) || ".pdf";
   const baseName = rawName
     ? sanitizeFilename(rawName) + "_CV" + ext
-    : sanitizeFilename(fileUrl.split("/").pop() ?? "resume") + ext;
-
-  const filePath = join(process.cwd(), "public", fileUrl);
+    : sanitizeFilename(filePath.split(sep).pop() ?? "resume") + ext;
 
   try {
     const buffer = await readFile(filePath);

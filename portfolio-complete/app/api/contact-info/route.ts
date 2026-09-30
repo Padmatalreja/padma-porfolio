@@ -1,10 +1,13 @@
 /**
  * GET  /api/contact-info  — public, returns the singleton contact_info row
  * PUT  /api/contact-info  — admin only, upserts the singleton row
+ *
+ * The contact_info table is created by the schema migration script.
+ * No DDL is executed here at runtime.
  */
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { getAdminUser } from "@/lib/auth";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -26,31 +29,14 @@ const ContactInfoSchema = z.object({
 // ── GET ──────────────────────────────────────────────────────────────────────
 export async function GET() {
   try {
-    // Auto-create table if migration hasn't been run yet
-    await query(
-      `CREATE TABLE IF NOT EXISTS contact_info (
-        id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        phone          text,
-        email          text,
-        address        text,
-        business_hours text,
-        social_links   jsonb NOT NULL DEFAULT '[]',
-        is_public      boolean NOT NULL DEFAULT true,
-        created_at     timestamptz NOT NULL DEFAULT now(),
-        updated_at     timestamptz NOT NULL DEFAULT now()
-      )`,
-      []
-    ).catch(() => {});
-
     const rows = await query(`SELECT * FROM contact_info LIMIT 1`, []);
-    const row = rows[0] ?? null;
+    const row  = rows[0] ?? null;
     if (!row) {
       return NextResponse.json({
         phone: null, email: null, address: null,
         business_hours: null, social_links: [],
       });
     }
-    // social_links is stored as JSONB; Neon returns it already parsed
     const social_links = Array.isArray(row.social_links) ? row.social_links : [];
     return NextResponse.json({ ...row, social_links });
   } catch (err) {
@@ -61,10 +47,9 @@ export async function GET() {
 
 // ── PUT ──────────────────────────────────────────────────────────────────────
 export async function PUT(request: Request) {
-  // Admin-only
-  try {
-    await requireAdmin();
-  } catch {
+  // Admin-only — using getAdminUser (returns null, no throw) for safe auth check
+  const user = await getAdminUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   }
 
@@ -94,7 +79,6 @@ export async function PUT(request: Request) {
   const socialJson = JSON.stringify(social_links);
 
   try {
-    // Check if a row already exists
     const existing = await query(`SELECT id FROM contact_info LIMIT 1`, []);
 
     if (existing.length > 0) {
@@ -105,31 +89,18 @@ export async function PUT(request: Request) {
              business_hours = $4, social_links = $5::jsonb,
              updated_at = now()
          WHERE id = $6`,
-        [
-          phone   || null,
-          email   || null,
-          address || null,
-          business_hours || null,
-          socialJson,
-          id,
-        ]
+        [phone || null, email || null, address || null, business_hours || null, socialJson, id]
       );
     } else {
       await query(
         `INSERT INTO contact_info (phone, email, address, business_hours, social_links)
          VALUES ($1, $2, $3, $4, $5::jsonb)`,
-        [
-          phone   || null,
-          email   || null,
-          address || null,
-          business_hours || null,
-          socialJson,
-        ]
+        [phone || null, email || null, address || null, business_hours || null, socialJson]
       );
     }
 
     const updated = await query(`SELECT * FROM contact_info LIMIT 1`, []);
-    const row = updated[0] as any;
+    const row     = updated[0] as any;
     return NextResponse.json({
       ...row,
       social_links: Array.isArray(row.social_links) ? row.social_links : [],

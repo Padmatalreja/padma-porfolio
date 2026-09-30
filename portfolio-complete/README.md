@@ -1,30 +1,49 @@
 # Padma Kumari Talreja — Production Portfolio
 
-A production-oriented personal portfolio and content-management system built with **Next.js 16.3.3 (App Router)**, React, TypeScript, Tailwind CSS, Supabase PostgreSQL/Auth/Storage, Zod, React Hook Form, Lucide icons, and Framer Motion. It is designed for Vercel's serverless architecture and does not require Express.
+A production-grade personal portfolio and content-management system built with:
 
-The initial content in `supabase/seed.sql` is derived from the supplied CV. Sections not supported by the CV (for example publications and awards) are intentionally empty until the administrator adds content.
+- **Next.js 16 (App Router)** — React 19, TypeScript, Tailwind CSS v4
+- **Neon PostgreSQL** — serverless Postgres via `@neondatabase/serverless`
+- **HMAC-SHA256 local auth** — no third-party auth service required
+- **TipTap** — rich-text editor for biography, project descriptions, etc.
+- **Zod + React Hook Form** — validated forms on both client and server
+- **Lucide** icons, **isomorphic-dompurify** HTML sanitisation
+
+Designed for **Vercel serverless** deployment. No Express, no Supabase.
+
+---
 
 ## Features
 
-- Responsive public portfolio: home, about, experience, education, skills, projects, publications, certifications, awards, contact.
-- Project detail routes at `/projects/[slug]` and publication filtering by year/type.
-- Supabase email/password admin authentication with server-side authorization checks.
-- Protected admin dashboard with statistics, recent content, quick actions, responsive sidebar, and logout.
-- CRUD management for profile, experience, education, skill categories, skills, projects, publications, certifications, awards, social links, and settings.
-- Ordering controls for ordered content, featured project/publication flags, project gallery uploads, and CV/profile/certificate/award uploads.
-- Searchable contact inbox with read/unread and delete controls.
-- Supabase Storage media manager with upload, preview, replace, and delete.
-- MIME/size validation (images up to 6 MB; resume PDF up to 10 MB).
-- Contact form with React Hook Form, Zod validation, server-side validation, honeypot spam defense, hashed-IP rate limiting (5/hour), and safe error responses.
-- RLS, storage policies, database constraints, indexes, server-only service role use, security response headers, sitemap, robots, canonical metadata, Open Graph/Twitter defaults, and JSON-LD (`Person`, `ProfilePage`, and `ScholarlyArticle` when publications exist).
-- CV-derived fallback data allows the public site to render before Supabase environment variables are configured.
+- Responsive public portfolio: home, about, experience, education, skills, projects, publications, certifications, awards, services, contact.
+- Project detail routes at `/projects/[slug]`.
+- Publication filtering by year and type.
+- Protected admin CMS dashboard with sidebar navigation.
+- Config-driven CRUD for all content sections (profile, experience, education, skills, projects, publications, certifications, awards, social links, services, testimonials, settings).
+- Ordering controls, featured flags, and project gallery support.
+- Contact inbox with read/unread/delete controls.
+- Media manager with local file upload.
+- MIME/size validation — images up to 6 MB, PDFs up to 10 MB.
+- Contact form with Zod validation, honeypot spam defence, and hashed-IP rate limiting (5/hour, atomic upsert).
+- Login rate limiting — 5 failed attempts per 15-minute window.
+- HMAC-signed session cookies — `httpOnly`, `secure` (in production), `sameSite: strict`.
+- DOMPurify HTML sanitisation on all rich-text output.
+- Security headers: HSTS, CSP, `X-Frame-Options`, `X-Content-Type-Options`, Referrer-Policy, Permissions-Policy, COOP.
+- Sitemap, robots.txt, canonical metadata, Open Graph / Twitter cards, JSON-LD (`Person`, `ProfilePage`).
+- CV-derived fallback data so the public site renders before the database is configured.
+- Health check endpoint at `/api/health`.
+- GitHub Actions CI — lint + typecheck + build on every push.
+
+---
 
 ## Requirements
 
-- Node.js 20.9+ (Node 22 recommended)
+- Node.js ≥ 20.9 (22 recommended)
 - npm
-- Supabase project
+- A [Neon](https://neon.tech) PostgreSQL project (free tier is sufficient)
 - Vercel account for deployment
+
+---
 
 ## 1. Install
 
@@ -32,105 +51,103 @@ The initial content in `supabase/seed.sql` is derived from the supplied CV. Sect
 npm install
 ```
 
+---
+
 ## 2. Configure environment variables
 
-Copy `.env.example` to `.env.local`:
+Copy `.env.example` to `.env.local` and fill in the values:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Configure:
+Required variables:
 
 ```env
+# Public site URL — no trailing slash
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
-CONTACT_RATE_LIMIT_SALT=YOUR_LONG_RANDOM_SECRET
+
+# Neon PostgreSQL connection string (from the Neon dashboard → Connect)
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require&channel_binding=require
+
+# Random string used to salt IP hashes for contact rate-limiting
+# Generate with: openssl rand -hex 32
+CONTACT_RATE_LIMIT_SALT=replace-with-a-long-random-string
+
+# Admin login credentials
+# For production, replace LOCAL_ADMIN_PASSWORD with a bcrypt hash:
+#   node -e "const b=require('bcryptjs'); b.hash('yourpass',12).then(console.log)"
+# The login action detects a bcrypt hash (starts with $2) automatically.
+LOCAL_ADMIN_EMAIL=admin@portfolio.local
+LOCAL_ADMIN_PASSWORD=Admin@1234
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` and `CONTACT_RATE_LIMIT_SALT` are server-only. **Never** prefix them with `NEXT_PUBLIC_` and never expose them to browser code.
+> **Security note:** Never commit `.env.local` to Git. It is already in `.gitignore`.
 
-Supabase now labels the browser-safe key as a **Publishable key**. Obtain the Project URL and Publishable key from the Supabase project's Connect/API settings. The service role key is only used inside server-only code after administrator authorization or by the contact ingestion route.
+---
 
-## 3. Create the Supabase schema
+## 3. Create the database schema
 
-In Supabase Dashboard → **SQL Editor**:
+Run the schema script against your Neon database.
 
-1. Open `supabase/migrations/001_initial.sql`.
-2. Paste the entire file into a new SQL query.
-3. Run it once.
+**Option A — Neon SQL Editor (recommended for first setup):**
 
-The migration creates:
+1. Open your Neon project → **SQL Editor**.
+2. Paste the contents of `scripts/neon-schema.sql` into a new query.
+3. Click **Run**.
 
-- `admin_users`
-- `profiles`
-- `experiences`
-- `education`
-- `skill_categories`
-- `skills`
-- `projects`
-- `project_images`
-- `publications`
-- `certifications`
-- `awards`
-- `social_links`
-- `contact_messages`
-- `contact_rate_limits`
-- `site_settings`
+**Option B — via the run-schema script:**
+
+```bash
+npm run check:env      # verify env vars are set
+node scripts/run-schema.mjs
+```
+
+The schema creates all tables including:
+
+- `profiles`, `site_settings` (with `nav_links`, `footer_links` columns)
+- `experiences`, `education`, `skill_categories`, `skills`
+- `projects`, `project_images`, `publications`
+- `certifications`, `awards`, `social_links`, `services`, `testimonials`
+- `contact_messages`, `contact_rate_limits`
+- `page_meta`, `contact_info`
 - `media`
-- storage buckets: `profile-images`, `project-images`, `certificates`, `resume`
-- indexes, constraints, `updated_at` triggers, RLS policies, storage policies, and the atomic `submit_contact_message` rate-limited function.
+- All indexes and `updated_at` triggers
 
-## 4. Seed the CV data
+**Existing database — run the migration instead:**
 
-In the SQL Editor, run the complete `supabase/seed.sql` file after the migration.
+If you already have a deployed database from an earlier version, run only the migration to add the missing columns and tables:
 
-The seed is deterministic and re-runnable. It creates the CV-backed profile, HABIBMETRO experience, BS Computer Science education, categorized skills, DVAGO testing project, and listed certifications/activities. It intentionally does not invent missing publications, awards, profile photo, GitHub URL, LinkedIn URL, ORCID, ResearchGate, or Google Scholar profile.
-
-## 5. Create the administrator
-
-The application assumes one administrator initially.
-
-1. In Supabase Dashboard → **Authentication → Users**, choose **Add user**.
-2. Enter the administrator email and a strong password. Create/confirm the user.
-3. Copy the user's UUID from Authentication → Users.
-4. In SQL Editor run:
-
-```sql
-insert into public.admin_users (user_id)
-values ('PASTE_AUTH_USER_UUID_HERE')
-on conflict (user_id) do nothing;
+```bash
+# Paste into Neon SQL Editor:
+scripts/migrate-004-missing-tables.sql
 ```
 
-5. Start the application and visit:
+---
 
-```text
-http://localhost:3000/admin/login
+## 4. Seed the CV data (optional)
+
+The fallback data in `lib/fallback-data.ts` already contains Padma's CV content and is served automatically when the database is empty. To persist that content to the database, run the seed script:
+
+```bash
+node scripts/seed.mjs
 ```
 
-Only an authenticated user whose UUID exists in `public.admin_users` can enter the protected admin area. The root `proxy.ts` refreshes the Supabase cookie session and redirects unauthenticated admin traffic, while the protected server layout independently checks administrator membership before rendering.
+---
 
-## 6. Upload the current CV
-
-The CV's text is seeded, but the seed SQL cannot upload a local PDF into your remote Supabase Storage project. After logging into the admin dashboard:
-
-1. Go to **Admin → Profile**.
-2. Choose the CV/resume PDF in the CV field.
-3. Save.
-
-The PDF is uploaded to the `resume` bucket and the public **Download CV** button appears automatically. Future replacements stay in Supabase Storage; Vercel's ephemeral local filesystem is not used for persistent uploads.
-
-## 7. Run locally
+## 5. Run locally
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000).
 
-Production-mode validation:
+To run the admin panel: [http://localhost:3000/admin/login](http://localhost:3000/admin/login)
+
+Use the `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD` you set in `.env.local`.
+
+**Full production-mode validation:**
 
 ```bash
 npm run typecheck
@@ -139,9 +156,11 @@ npm run build
 npm start
 ```
 
-## Admin routes
+---
 
-```text
+## 6. Admin routes
+
+```
 /admin/login
 /admin/dashboard
 /admin/profile
@@ -149,138 +168,166 @@ npm start
 /admin/education
 /admin/skill-categories
 /admin/skills
+/admin/services
 /admin/projects
 /admin/publications
 /admin/certifications
 /admin/awards
+/admin/testimonials
 /admin/social-links
+/admin/contact-info
 /admin/messages
 /admin/media
 /admin/settings
 ```
 
-The dynamic admin content route is intentionally configuration-driven so all of these URLs share the same hardened CRUD implementation instead of duplicating database logic.
+---
 
-## Security design
+## 7. Hashing the admin password (recommended for production)
 
-- Authentication uses Supabase email/password with cookie-based SSR sessions.
-- Protected server layouts verify both the Supabase user and `admin_users` membership.
-- Admin mutations call `requireAdmin()` before using the server-only service role client.
-- All public database content has RLS enabled. Anonymous users can read only rows marked `is_public`.
-- Contact messages have no public read policy; contact ingestion occurs through a validated server route.
-- Contact rate limiting hashes the request IP with `CONTACT_RATE_LIMIT_SALT`; raw IP addresses are not stored.
-- Rate limiting and message insertion occur inside a PostgreSQL function.
-- Uploads validate MIME type and size on the server and again through bucket MIME/file-size constraints.
-- No service role key appears in client modules.
-- Next.js/React provide output escaping; user text is rendered as text, not arbitrary HTML.
-- Security headers include HSTS, `X-Content-Type-Options`, clickjacking protection, referrer policy, permissions policy, and cross-origin opener policy.
-
-For especially high-traffic deployments, add a distributed edge rate limiter (such as Vercel Firewall/Rate Limiting or Upstash) in addition to the included PostgreSQL rate limit.
-
-## Storage and media
-
-Buckets are created by the migration. Public portfolio assets are readable by visitors, while database/storage writes require administrator authorization. The media manager can upload, preview, replace, and delete managed files. Project editors can upload multiple gallery images and delete individual gallery entries.
-
-Recommended image formats: WebP/AVIF/JPEG/PNG. Resume uploads must be PDF.
-
-## GitHub
-
-Create a repository and push the project:
+Instead of storing the plain-text password in the environment variable, store a bcrypt hash:
 
 ```bash
-git init
-git add .
-git commit -m "Initial production portfolio"
-git branch -M main
-git remote add origin YOUR_GITHUB_REPOSITORY_URL
-git push -u origin main
+node -e "const b = require('bcryptjs'); b.hash('your-strong-password', 12).then(h => console.log(h))"
 ```
 
-Do not commit `.env.local` or secrets. `.gitignore` already excludes environment files.
+Set `LOCAL_ADMIN_PASSWORD` to the output (e.g. `$2b$12$...`). The login action detects the `$2` prefix and uses bcrypt comparison automatically.
 
-## Vercel deployment
+---
 
-1. Push this folder to GitHub.
-2. In Vercel, choose **Add New → Project**.
-3. Import the GitHub repository.
-4. Vercel should detect **Next.js** automatically.
-5. Keep the default build command (`next build`) and install command (`npm install`).
-6. In **Project Settings → Environment Variables**, add:
-   - `NEXT_PUBLIC_SITE_URL` — first use the Vercel production URL, later update it to the custom domain.
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `CONTACT_RATE_LIMIT_SALT`
-7. Apply the variables to Production (and Preview if you want preview deployments connected to Supabase).
-8. Click **Deploy**.
-9. After the first deployment, verify `/`, `/contact`, `/admin/login`, and an authenticated `/admin/dashboard` session.
+## 8. Security design
 
-### Supabase Auth URL configuration
+- **Middleware** (`middleware.ts`) redirects unauthenticated requests to `/admin/login` before any admin page renders.
+- **`requireAdmin()`** is also called inside every protected server layout and every server action, providing defence-in-depth.
+- **Session cookies** are `httpOnly`, `secure` (in production), and `sameSite: strict`.
+- **Session tokens** are HMAC-SHA256 signed with a cryptographically random nonce so two logins never produce the same token.
+- **Login rate limiting** blocks an email after 5 failed attempts within 15 minutes.
+- **HTML sanitisation** — all rich-text output is passed through DOMPurify before `dangerouslySetInnerHTML`, preventing stored XSS.
+- **Path traversal** — `/api/download-cv` resolves the full path and verifies it is inside `/public/uploads/` before reading.
+- **Contact rate limiting** uses an atomic `ON CONFLICT DO UPDATE` upsert to prevent race conditions.
+- **IP hashing** — raw IP addresses are never stored; they are hashed with `CONTACT_RATE_LIMIT_SALT`.
+- **No secrets in client code** — all sensitive env vars are server-only.
+- **CSP** restricts image sources to known hostnames (Cloudinary, Unsplash). Extend `next.config.ts` `remotePatterns` and the CSP `img-src` directive if you add other image hosts.
 
-For password-only sign-in, no OAuth callback is required. In Supabase Authentication → URL Configuration, set the Site URL to your production domain. If you later add magic links/OAuth, add the appropriate Vercel preview and production callback URLs before enabling those providers.
+---
 
-## Custom domain
+## 9. Vercel deployment
 
-1. Vercel → Project → **Settings → Domains**.
-2. Add your domain.
-3. Follow Vercel's DNS instructions.
-4. Change `NEXT_PUBLIC_SITE_URL` to `https://yourdomain.com` in Vercel.
-5. Redeploy so canonical URLs, sitemap entries, and JSON-LD use the custom domain.
-6. Update the Supabase Auth Site URL to the same production domain.
+1. Push this folder to a GitHub repository.
+2. In Vercel, choose **Add New → Project** and import the repository.
+3. Set the **Root Directory** to `portfolio-complete` if deploying the subfolder.
+4. In **Settings → Environment Variables**, add all variables from `.env.example`.
+5. Click **Deploy**.
 
-## Production troubleshooting
+After deploying, verify:
 
-**Public site works, admin login says Supabase is not configured**  
-Verify all four Supabase variables are present in the environment where the app runs, then restart/redeploy.
+- `/` — public home page loads with your profile data
+- `/api/health` — returns `{"status":"ok"}`
+- `/admin/login` — login form visible
+- Authenticated `/admin/dashboard` — CMS loads correctly
 
-**Login succeeds but redirects back to login**  
-Confirm the authenticated user's UUID exists in `public.admin_users` and that the migration/RLS policies ran successfully.
+**Important:** Vercel's filesystem is ephemeral. Files uploaded via `/api/upload` are stored in `/public/uploads/` and will be **lost on redeploy**. For persistent uploads, integrate Cloudinary:
 
-**Uploads fail**  
-Confirm the migration created all four buckets. Check file MIME/size limits. Verify `SUPABASE_SERVICE_ROLE_KEY` exists only on the server environment.
+- Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` in Vercel (stubs are in `.env.example`).
+- Update `/api/upload/route.ts` to use the Cloudinary Node SDK instead of `fs/promises.writeFile`.
 
-**Contact form returns 503**  
-The server-side service role configuration is missing. Add `SUPABASE_SERVICE_ROLE_KEY` and redeploy.
+---
 
-**Images from Supabase fail in Next Image**  
-The included `next.config.ts` allows HTTPS images from `*.supabase.co`. If you use a custom storage CDN hostname, add that hostname to `images.remotePatterns`.
+## 10. Custom domain
 
-**Canonical/sitemap URLs show localhost**  
-Set `NEXT_PUBLIC_SITE_URL` in Vercel to the production HTTPS domain and redeploy.
+1. Vercel → Project → **Settings → Domains** → add your domain.
+2. Update `NEXT_PUBLIC_SITE_URL` to `https://yourdomain.com` in Vercel env vars.
+3. Redeploy so canonical URLs, sitemap entries, and JSON-LD use the correct domain.
 
-## Data privacy
+---
 
-The original CV included a more specific Karachi locality. The public seed uses **Karachi, Pakistan** rather than a more precise residential/locality-style address. Private references and government identifiers are not stored. Review the public email/phone fields before launch if you prefer not to display them publicly.
+## 11. CI/CD
+
+A GitHub Actions workflow is included at `.github/workflows/ci.yml`. It runs lint, typecheck, and build on every push and pull request to `main`/`master`.
+
+To enable it, add the following secrets to your GitHub repository (**Settings → Secrets → Actions**):
+
+- `DATABASE_URL`
+- `LOCAL_ADMIN_EMAIL`
+- `LOCAL_ADMIN_PASSWORD`
+- `CONTACT_RATE_LIMIT_SALT`
+
+The CI uses stub values if secrets are absent, so it will still run but the build won't connect to a real database.
+
+---
+
+## 12. Health check
+
+```
+GET /api/health
+```
+
+Returns `200` with `{"status":"ok","database":"ok"}` when the app and database are healthy.
+Returns `503` with `{"status":"degraded","database":"error"}` when the database is unreachable.
+
+Use this URL as a Vercel deployment check or uptime monitor target.
+
+---
 
 ## Project structure
 
-```text
-app/
-  (public)/
-  admin/
-  api/contact/
-  layout.tsx
-  sitemap.ts
-  robots.ts
-components/
-  public/
-  admin/
-  ui/
-lib/
-  supabase/
-  validations/
-  admin-config.ts
-  auth.ts
-  data.ts
-  fallback-data.ts
-types/
-supabase/
-  migrations/001_initial.sql
-  seed.sql
-.env.example
-proxy.ts
-next.config.ts
-package.json
-README.md
-vercel.json
 ```
+portfolio-complete/
+├── app/
+│   ├── (public)/          Public portfolio pages
+│   ├── admin/             Protected CMS panel
+│   ├── api/               Route handlers (contact, upload, download-cv, health, contact-info)
+│   ├── globals.css        Design tokens + utility styles
+│   └── layout.tsx         Root layout (fonts, metadata base)
+├── components/
+│   ├── public/            SiteHeader, SiteFooter, ContactForm, ProseContent, ...
+│   ├── admin/             AdminShell, AdminSection, ImageUpload, RichTextEditor, ...
+│   └── ui/                Input, Textarea, Button, Card, Badge
+├── lib/
+│   ├── db.ts              Neon HTTP + Pool drivers (query, queryWithPool)
+│   ├── auth.ts            requireAdmin() / getAdminUser()
+│   ├── local-auth.ts      HMAC-SHA256 session tokens
+│   ├── login-rate-limit.ts In-process login attempt counter
+│   ├── data.ts            React.cache() portfolio data fetcher
+│   ├── fallback-data.ts   Hardcoded CV data (served when DB absent)
+│   ├── admin-config.ts    Config-driven CRUD schema
+│   ├── env.ts             Environment variable helpers
+│   └── validations/       Zod schemas
+├── scripts/
+│   ├── neon-schema.sql    Full database schema (run once on fresh DB)
+│   ├── migrate-004-missing-tables.sql  Incremental migration for existing DBs
+│   ├── seed.mjs           CV data seed
+│   ├── check-env.mjs      Pre-build environment variable check
+│   └── run-schema.mjs     Schema runner script
+├── types/
+│   └── portfolio.ts       TypeScript types for all data models
+├── middleware.ts           Next.js middleware — admin route auth guard
+├── next.config.ts          Next.js config (security headers, image patterns)
+├── .env.example            Environment variable template
+└── .github/workflows/ci.yml  GitHub Actions CI
+```
+
+---
+
+## Troubleshooting
+
+**Public site loads but shows fallback/CV data instead of database content**
+Run the schema script and seed. Check that `DATABASE_URL` is set correctly and the database is reachable via `/api/health`.
+
+**Admin login says "Admin authentication is not configured"**
+Verify `LOCAL_ADMIN_EMAIL` and `LOCAL_ADMIN_PASSWORD` are set in the environment and the server has been restarted.
+
+**Login succeeds but immediately redirects back to login**
+The session cookie requires HTTPS in production (`secure: true`). Ensure you are accessing the site via HTTPS, not HTTP.
+
+**Too many login attempts error**
+Wait 15 minutes or restart the server (the rate limiter is in-process). For production with multiple instances, implement a Redis-backed rate limiter.
+
+**Uploads disappear after redeployment**
+Expected behaviour on Vercel — the local filesystem is ephemeral. Migrate to Cloudinary (see section 9).
+
+**`/api/health` returns 503**
+The database is unreachable. Check `DATABASE_URL`, Neon project status, and network connectivity.
+
+**Canonical/sitemap URLs show localhost**
+Set `NEXT_PUBLIC_SITE_URL` to your production HTTPS domain in Vercel environment variables and redeploy.

@@ -6,10 +6,16 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
+      // Next.js requires 'unsafe-inline' for its runtime style injection.
+      // 'unsafe-eval' is required by some Next.js internals in development;
+      // it is kept here for compatibility but should be removed once a nonce-
+      // based CSP is implemented in a future hardening pass.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https:",
+      // img-src: self + data URIs + blob + Cloudinary CDN + res.cloudinary.com
+      // Add your specific CDN hostname(s) here instead of the wildcard https:.
+      "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com",
       "connect-src 'self' https: wss:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -32,20 +38,22 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   images: {
+    // Restrict to specific trusted hostnames instead of the wildcard "**".
+    // Add additional hostnames here as needed (e.g. your Cloudinary cloud name).
     remotePatterns: [
-      { protocol: "https", hostname: "**" },
+      // Cloudinary CDN
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      // Unsplash (common placeholder source)
+      { protocol: "https", hostname: "images.unsplash.com" },
+      // Allow locally-served uploads (handled by Next.js static file serving)
+      // These start with /uploads/ and don't need a remotePattern.
     ],
-    // Cache optimized images for 1 day (86400s).
-    // Profile picture updates will still reflect within 1 day,
-    // or immediately when uploaded via /api/upload (which uses unoptimized=true).
     minimumCacheTTL: 86400,
-    // Allow WebP/AVIF output for automatic format negotiation
     formats: ["image/avif", "image/webp"],
   },
   async headers() {
     return [
-      // Long-lived caching for locally uploaded static files (images, PDFs).
-      // 1 year immutable — safe because upload filenames include a unique hex suffix.
+      // Long-lived caching for locally uploaded static files.
       {
         source: "/uploads/:path*",
         headers: [

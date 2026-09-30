@@ -81,7 +81,7 @@ export default async function ExperiencePage() {
                     className="absolute -left-[2.95rem] top-1.5 hidden h-3 w-3 rounded-full md:block"
                     style={{
                       background: "var(--gradient-brand)",
-                      boxShadow: "0 0 12px rgba(124,58,237,0.7)",
+                      boxShadow: "0 0 12px rgba(201,168,118,0.5)",
                     }}
                   />
 
@@ -114,8 +114,8 @@ export default async function ExperiencePage() {
                         style={{
                           background: exp.is_current
                             ? "rgba(0,229,255,0.1)"
-                            : "rgba(124,58,237,0.1)",
-                          border: `1px solid ${exp.is_current ? "rgba(0,229,255,0.3)" : "rgba(124,58,237,0.3)"}`,
+                            : "rgba(201,168,118,0.1)",
+                          border: `1px solid ${exp.is_current ? "rgba(0,229,255,0.3)" : "rgba(201,168,118,0.3)"}`,
                           color: exp.is_current ? "var(--cyan)" : "var(--purple-light)",
                         }}
                       >

@@ -805,3 +805,22 @@ img { max-width: 100%; height: auto; }
     width: var(--line-w, 64px) !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PROSE OUTPUT — rich-text rendered HTML from TipTap fields
+   Previously injected as inline <style> per-component render;
+   moved here to avoid duplicate style blocks.
+   ═══════════════════════════════════════════════════════════════ */
+.prose-output { color: var(--text-secondary); line-height: 1.7; }
+.prose-output h2 { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 1.2em 0 0.4em; }
+.prose-output h3 { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin: 1em 0 0.35em; }
+.prose-output p  { margin: 0 0 0.75em; }
+.prose-output ul { list-style: disc; padding-left: 1.5em; margin: 0.5em 0 0.75em; }
+.prose-output ol { list-style: decimal; padding-left: 1.5em; margin: 0.5em 0 0.75em; }
+.prose-output li { margin: 0.25em 0; }
+.prose-output blockquote { border-left: 3px solid var(--tan); padding-left: 0.9em; color: var(--text-muted); font-style: italic; margin: 0.75em 0; }
+.prose-output code { background: rgba(201,168,118,0.12); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.875em; color: var(--tan-dark); }
+.prose-output a { color: var(--cyan); text-decoration: underline; }
+.prose-output strong { font-weight: 700; color: var(--text-primary); }
+.prose-output em { font-style: italic; }
+.prose-output hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }

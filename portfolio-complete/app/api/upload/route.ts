@@ -3,15 +3,16 @@
  * Accepts a multipart form with a single `file` field.
  * Saves the file to /public/uploads/ and returns { url }.
  *
- * Files are stored locally so they persist in the Git repo and remain
- * available after deployment without any third-party service.
+ * Files are stored locally. NOTE: local storage is not suitable for
+ * serverless/Vercel deployments — migrate to Cloudinary or similar for
+ * production. The CLOUDINARY_* env vars are stubbed in .env.example.
  *
  * Requires the admin session cookie — not publicly accessible.
  */
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
-import { requireAdmin } from "@/lib/auth";
+import { getAdminUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -47,10 +48,11 @@ function randomHex(bytes = 8): string {
 }
 
 export async function POST(request: Request) {
-  // Auth check — admin only
-  try {
-    await requireAdmin();
-  } catch {
+  // ── Auth check — do NOT wrap in try/catch; only catch auth-specific errors ──
+  // Using getAdminUser() (returns null instead of throwing) avoids silently
+  // swallowing unrelated errors that would otherwise grant unauthorised access.
+  const user = await getAdminUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   }
 
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
   }
 
   const file   = formData.get("file");
+  // Sanitise the folder parameter to alphanumeric/dash/underscore only
   const folder = String(formData.get("folder") || "portfolio").replace(/[^a-z0-9_-]/gi, "");
 
   if (!(file instanceof File) || !file.size) {
@@ -88,7 +91,6 @@ export async function POST(request: Request) {
   }
 
   const ext      = MIME_TO_EXT[file.type] ?? "bin";
-  // Preserve original filename: sanitise it, strip the extension, re-attach it
   const originalBase = file.name
     .replace(/\.[^.]+$/, "")                  // strip extension
     .replace(/[^a-zA-Z0-9._\- ]/g, "")        // remove unsafe chars

@@ -73,7 +73,7 @@ export default async function ProjectDetailPage({
             className="h-48"
             style={{
               background:
-                "linear-gradient(135deg, rgba(124,58,237,0.2) 0%, rgba(0,229,255,0.1) 100%)",
+                "linear-gradient(135deg, rgba(201,168,118,0.15) 0%, rgba(92,140,138,0.08) 100%)",
             }}
           >
             <div
@@ -81,7 +81,7 @@ export default async function ProjectDetailPage({
               style={{
                 width: "400px",
                 height: "400px",
-                background: "radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(201,168,118,0.2) 0%, transparent 70%)",
                 top: "-100px",
                 left: "30%",
               }}
@@ -324,9 +324,9 @@ export default async function ProjectDetailPage({
                         rel="noreferrer"
                         className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold transition-all"
                         style={{
-                          background: "rgba(124,58,237,0.08)",
-                          border: "1px solid rgba(124,58,237,0.2)",
-                          color: "var(--purple-light)",
+                          background: "rgba(201,168,118,0.08)",
+                          border: "1px solid rgba(201,168,118,0.2)",
+                          color: "var(--tan-dark)",
                         }}
                       >
                         <ExternalLink size={14} />

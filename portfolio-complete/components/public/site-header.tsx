@@ -179,8 +179,9 @@ export function SiteHeader({ logo = "PKT", navLinks, profileImage, profileName }
             type="button"
             className="rounded-lg p-2 transition-colors lg:hidden"
             style={{ color: "var(--text-secondary)" }}
-            aria-label="Toggle navigation"
+            aria-label={open ? "Close navigation" : "Open navigation"}
             aria-expanded={open}
+            aria-controls="mobile-nav-drawer"
             onClick={() => setOpen(!open)}
           >
             {open ? <X size={20} /> : <Menu size={20} />}
@@ -194,16 +195,36 @@ export function SiteHeader({ logo = "PKT", navLinks, profileImage, profileName }
           className="fixed inset-0 z-40 lg:hidden"
           onClick={() => setOpen(false)}
           style={{ background: "rgba(74,55,40,0.3)", backdropFilter: "blur(4px)" }}
+          aria-hidden="true"
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — focus-trapped dialog */}
       <div
         className="fixed top-0 right-0 bottom-0 z-50 w-72 flex flex-col lg:hidden transition-transform duration-300"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
         style={{
           background:  "var(--bg-base)",
           borderLeft:  "1px solid var(--border)",
           transform:   open ? "translateX(0)" : "translateX(100%)",
+        }}
+        // Trap Tab focus inside the drawer when open
+        onKeyDown={(e) => {
+          if (!open) return;
+          if (e.key === "Escape") { setOpen(false); return; }
+          if (e.key !== "Tab") return;
+          const focusable = e.currentTarget.querySelectorAll<HTMLElement>(
+            'a, button, [tabindex]:not([tabindex="-1"])'
+          );
+          const first = focusable[0];
+          const last  = focusable[focusable.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+          } else {
+            if (document.activeElement === last)  { e.preventDefault(); first.focus(); }
+          }
         }}
       >
         <div
