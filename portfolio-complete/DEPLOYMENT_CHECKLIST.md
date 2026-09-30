@@ -7,55 +7,46 @@
 - [ ] Run `npm run dev` → visit `http://localhost:3000`
 - [ ] Log in at `/admin/login` with `LOCAL_ADMIN_EMAIL` / `LOCAL_ADMIN_PASSWORD`
 
-## Supabase Setup (for full dynamic content)
+## Neon Database Setup
 
-- [ ] Create a free project at [supabase.com](https://supabase.com)
-- [ ] Open the SQL Editor and run **in order**:
-  1. `supabase/migrations/001_initial.sql`
-  2. `supabase/migrations/002_services_testimonials.sql`
-  3. `supabase/seed.sql` (loads Padma's CV data + 6 services)
-- [ ] Create an Auth user: `Authentication → Users → Invite`
-- [ ] Insert that user's UUID into `public.admin_users`:
-  ```sql
-  insert into public.admin_users (user_id)
-  values ('<your-auth-user-uuid>');
-  ```
-- [ ] Copy keys into `.env.local`:
-  - `NEXT_PUBLIC_SUPABASE_URL` — Project URL
-  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — anon/public key
-  - `SUPABASE_SERVICE_ROLE_KEY` — service_role key (Settings → API)
-- [ ] Restart dev server: `npm run dev`
-- [ ] Log in at `/admin/login` with your Supabase user credentials
-- [ ] Upload profile image and CV at `/admin/profile`
+- [ ] Create a free project at [neon.tech](https://neon.tech)
+- [ ] In the Neon dashboard go to **SQL Editor** and run the schema script:
+  - `scripts/neon-schema.sql` — creates all tables and indexes
+- [ ] Copy the **pooled** connection string from **Project → Connection Details → Pooled connection**
+- [ ] Paste it as `DATABASE_URL` in `.env.local` (local) and in Vercel dashboard (production)
 
 ## Pre-Deploy Verification
 
-- [ ] `npm run build` succeeds locally
-- [ ] All public routes return 200: `/`, `/about`, `/skills`, `/services`, `/experience`, `/education`, `/projects`, `/contact`, `/certifications`, `/awards`
-- [ ] Admin routes redirect to login when unauthenticated
-- [ ] Contact form submits successfully
-- [ ] Profile updates reflect on the public site immediately
-- [ ] Project CRUD works (add, edit, delete, reorder, mark featured)
-- [ ] Media upload works (profile image, project images, CV PDF)
+- [ ] `npm run build` succeeds locally with all 5 env vars set
+- [ ] All public routes load: `/`, `/about`, `/skills`, `/services`, `/experience`, `/education`, `/projects`, `/contact`, `/certifications`, `/awards`
+- [ ] Admin routes redirect to `/admin/login` when unauthenticated
+- [ ] Contact form submits and stores message in Neon DB
+- [ ] Admin login works with `LOCAL_ADMIN_EMAIL` / `LOCAL_ADMIN_PASSWORD`
+- [ ] Profile and section edits reflect on the public site immediately
 
 ## Vercel Deployment
 
-- [ ] Push repository to GitHub (ensure `.env.local` is in `.gitignore` ✅)
-- [ ] Import repository in [Vercel](https://vercel.com)
-- [ ] Add environment variables in Vercel dashboard:
-  - `NEXT_PUBLIC_SITE_URL` = `https://yourdomain.com`
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-  - `SUPABASE_SERVICE_ROLE_KEY`
-  - `CONTACT_RATE_LIMIT_SALT` (generate a random string)
-- [ ] Deploy and run smoke tests on production URL
-- [ ] Update Supabase Auth **Site URL** to your production domain
-- [ ] Add custom domain and update `NEXT_PUBLIC_SITE_URL`
+- [ ] Push repository to GitHub (`.env.local` is in `.gitignore` ✅)
+- [ ] Import repository at [vercel.com/new](https://vercel.com/new)
+  - Root Directory: `portfolio-complete`
+  - Framework Preset: **Next.js** (auto-detected)
+- [ ] Add all 5 environment variables in the Vercel dashboard under **Settings → Environment Variables**:
+
+  | Key | Value |
+  |-----|-------|
+  | `NEXT_PUBLIC_SITE_URL` | `https://padma-porfolio.vercel.app` (or your custom domain) |
+  | `DATABASE_URL` | Your Neon pooled connection string |
+  | `CONTACT_RATE_LIMIT_SALT` | A random 32-char string |
+  | `LOCAL_ADMIN_EMAIL` | Your admin email |
+  | `LOCAL_ADMIN_PASSWORD` | Your admin password |
+
+- [ ] Set environment to **All Environments** (Production + Preview + Development)
+- [ ] Click **Deploy**
 
 ## Post-Deploy
 
-- [ ] Test admin login on production
-- [ ] Verify contact form stores messages in Supabase
+- [ ] Test admin login at `https://your-domain.vercel.app/admin/login`
+- [ ] Verify contact form stores messages (check `/admin/messages`)
 - [ ] Check `/sitemap.xml` and `/robots.txt` are accessible
-- [ ] Confirm profile image, project thumbnails, and CV download work
-- [ ] Test on mobile (375px) and desktop (1440px)
+- [ ] Test on mobile (375 px) and desktop (1440 px)
+- [ ] If using a custom domain: add it in **Vercel → Domains** and update `NEXT_PUBLIC_SITE_URL`

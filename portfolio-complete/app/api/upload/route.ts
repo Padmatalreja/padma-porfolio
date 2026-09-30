@@ -1,61 +1,48 @@
 /**
  * POST /api/upload
- * Accepts a multipart form with a single `file` field.
- * Saves the file to /public/uploads/ and returns { url }.
  *
- * Files are stored locally in /public/uploads/.
- * NOTE: local storage is ephemeral on serverless platforms (e.g. Vercel).
- * For persistent uploads, swap this route to use an external storage provider.
+ * Accepts a multipart form with a single `file` field and an optional `folder` field.
+ * Stores the file as a base64 data-URL in the Neon `media` table and returns { url }.
+ *
+ * Why data-URLs instead of local filesystem?
+ *   Vercel's serverless environment has an ephemeral, read-only filesystem —
+ *   files written to disk during one request are gone by the next cold start.
+ *   Storing the file directly in Neon means it persists alongside the rest of
+ *   your portfolio data with zero extra services or credentials.
+ *
+ * Size limits (enforced before storing):
+ *   Images — 4 MB   (keeps data-URLs reasonable in the DB and on the wire)
+ *   PDFs   — 8 MB
  *
  * Requires the admin session cookie — not publicly accessible.
  */
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { getAdminUser } from "@/lib/auth";
+import { query } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-// Max file sizes
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;   // 6 MB
-const MAX_PDF_BYTES   = 10 * 1024 * 1024;  // 10 MB
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;  // 4 MB
+const MAX_PDF_BYTES   = 8 * 1024 * 1024;  // 8 MB
 
-const ALLOWED_IMAGE_TYPES = new Set([
+const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/avif",
   "image/gif",
   "image/svg+xml",
+  "application/pdf",
 ]);
 
-// Map MIME → file extension
-const MIME_TO_EXT: Record<string, string> = {
-  "image/jpeg":       "jpg",
-  "image/png":        "png",
-  "image/webp":       "webp",
-  "image/avif":       "avif",
-  "image/gif":        "gif",
-  "image/svg+xml":    "svg",
-  "application/pdf":  "pdf",
-};
-
-/** Generate a short random hex token */
-function randomHex(bytes = 8): string {
-  const arr = new Uint8Array(bytes);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export async function POST(request: Request) {
-  // ── Auth check — do NOT wrap in try/catch; only catch auth-specific errors ──
-  // Using getAdminUser() (returns null instead of throwing) avoids silently
-  // swallowing unrelated errors that would otherwise grant unauthorised access.
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const user = await getAdminUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   }
 
+  // ── Parse form data ───────────────────────────────────────────────────────
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -64,23 +51,22 @@ export async function POST(request: Request) {
   }
 
   const file   = formData.get("file");
-  // Sanitise the folder parameter to alphanumeric/dash/underscore only
   const folder = String(formData.get("folder") || "portfolio").replace(/[^a-z0-9_-]/gi, "");
 
   if (!(file instanceof File) || !file.size) {
     return NextResponse.json({ error: "No file provided." }, { status: 400 });
   }
 
-  const isPdf   = file.type === "application/pdf";
-  const isImage = ALLOWED_IMAGE_TYPES.has(file.type);
-
-  if (!isPdf && !isImage) {
+  // ── Validate type ─────────────────────────────────────────────────────────
+  if (!ALLOWED_TYPES.has(file.type)) {
     return NextResponse.json(
       { error: `Unsupported file type: ${file.type}. Allowed: JPEG, PNG, WebP, AVIF, GIF, SVG, PDF.` },
       { status: 400 }
     );
   }
 
+  // ── Validate size ─────────────────────────────────────────────────────────
+  const isPdf    = file.type === "application/pdf";
   const maxBytes = isPdf ? MAX_PDF_BYTES : MAX_IMAGE_BYTES;
   if (file.size > maxBytes) {
     const maxMb = maxBytes / (1024 * 1024);
@@ -90,29 +76,34 @@ export async function POST(request: Request) {
     );
   }
 
-  const ext      = MIME_TO_EXT[file.type] ?? "bin";
-  const originalBase = file.name
-    .replace(/\.[^.]+$/, "")                  // strip extension
-    .replace(/[^a-zA-Z0-9._\- ]/g, "")        // remove unsafe chars
-    .replace(/\s+/g, "_")                      // spaces → underscores
-    .slice(0, 80)                              // max 80 chars
-    || "file";
-  const filename = `${originalBase}_${randomHex(6)}.${ext}`;
+  // ── Build a safe filename ─────────────────────────────────────────────────
+  const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
+  const baseName = file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9._\- ]/g, "")
+    .replace(/\s+/g, "_")
+    .slice(0, 80) || "file";
 
-  // Resolve the destination directory inside /public/uploads/<folder>/
-  const uploadDir = join(process.cwd(), "public", "uploads", folder);
+  // Random 6-byte hex suffix to avoid collisions
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const fileName = `${baseName}_${nonce}.${ext}`;
 
+  // ── Convert to base64 data-URL ────────────────────────────────────────────
+  const arrayBuffer = await file.arrayBuffer();
+  const base64      = Buffer.from(arrayBuffer).toString("base64");
+  const dataUrl     = `data:${file.type};base64,${base64}`;
+
+  // ── Persist to Neon media table ───────────────────────────────────────────
   try {
-    await mkdir(uploadDir, { recursive: true });
+    await query(
+      `INSERT INTO media (bucket, file_name, url, mime_type, size_bytes, is_public)
+       VALUES ($1, $2, $3, $4, $5, true)`,
+      [folder, fileName, dataUrl, file.type, file.size]
+    );
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer      = Buffer.from(arrayBuffer);
-    await writeFile(join(uploadDir, filename), buffer);
-
-    // The public URL served by Next.js static file handler
-    const url = `/uploads/${folder}/${filename}`;
-
-    return NextResponse.json({ url });
+    return NextResponse.json({ url: dataUrl });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Upload failed.";
     console.error("[/api/upload]", message);

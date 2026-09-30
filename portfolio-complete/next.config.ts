@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const securityHeaders = [
   {
@@ -34,9 +33,6 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  turbopack: {
-    root: path.resolve(__dirname),
-  },
   images: {
     // Restrict to specific trusted hostnames instead of the wildcard "**".
     // Add additional hostnames here as needed.

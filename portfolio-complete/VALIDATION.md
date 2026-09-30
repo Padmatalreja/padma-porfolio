@@ -7,8 +7,8 @@
 - Parsed `package.json`, `tsconfig.json`, and `vercel.json` as JSON successfully.
 - Verified required public/admin route source files are present.
 - Searched the source tree for `TODO`, `FIXME`, unfinished-code placeholders, JWT-like hardcoded secrets, and service-role assignments: none found.
-- Verified `SUPABASE_SERVICE_ROLE_KEY` is referenced only by server-side environment/admin-client modules; no `"use client"` file imports the service-role client.
-- Confirmed the project contains the migration, RLS/storage policies, deterministic CV seed, `.env.example`, README, Vercel config, public/admin UI, CRUD actions, contact ingestion, and upload management.
+- Verified no Supabase or Cloudinary packages or environment variables are referenced anywhere in the codebase. All database access goes through `lib/db.ts` using `@neondatabase/serverless`.
+- Confirmed the project contains the Neon schema script, `.env.example`, README, Vercel config, public/admin UI, CRUD actions, contact ingestion, and media URL management.
 
 ## Package/build check in this sandbox
 

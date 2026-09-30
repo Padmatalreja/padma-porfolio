@@ -38,11 +38,11 @@ jobs:
         run: npm run build
         working-directory: portfolio-complete
         env:
-          # Provide stub values so the build doesn't fail env checks.
-          # Real secrets are injected via Vercel environment variables.
-          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://stub:stub@localhost/stub' }}
-          LOCAL_ADMIN_EMAIL: ${{ secrets.LOCAL_ADMIN_EMAIL || 'admin@example.com' }}
-          LOCAL_ADMIN_PASSWORD: ${{ secrets.LOCAL_ADMIN_PASSWORD || 'stub-password-for-ci' }}
-          CONTACT_RATE_LIMIT_SALT: ${{ secrets.CONTACT_RATE_LIMIT_SALT || 'ci-stub-salt' }}
+          # Stub values so the pre-build env check and Next.js build pass in CI.
+          # Real secrets are injected via Vercel environment variables at deploy time.
           NEXT_PUBLIC_SITE_URL: 'https://example.com'
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://stub:stub@localhost/stub?sslmode=require' }}
+          CONTACT_RATE_LIMIT_SALT: ${{ secrets.CONTACT_RATE_LIMIT_SALT || 'ci-stub-salt-32-chars-xxxxxxxxxx' }}
+          LOCAL_ADMIN_EMAIL: ${{ secrets.LOCAL_ADMIN_EMAIL || 'admin@example.com' }}
+          LOCAL_ADMIN_PASSWORD: ${{ secrets.LOCAL_ADMIN_PASSWORD || 'ci-stub-password-for-build-only' }}
           NODE_ENV: production

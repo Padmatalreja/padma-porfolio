@@ -1,1 +1,2 @@
-Static public files may be placed here. Administrator uploads are stored in Supabase Storage, not Vercel local storage.
+Static public files may be placed here.
+Media URLs are registered in the Neon database via the admin Media Manager (/admin/media).
