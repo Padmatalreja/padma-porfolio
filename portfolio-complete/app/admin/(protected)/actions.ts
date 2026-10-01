@@ -125,6 +125,11 @@ export async function saveRecord(section: string, formData: FormData) {
       if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v))
         throw new Error(`${field.label} must be a valid date.`);
       payload[field.name] = nullable(v);
+    } else if (field.type === "image-upload") {
+      // image-upload fields store a data-URL (base64) or a remote https:// URL.
+      // A 4 MB image becomes ~5.5 MB as base64 — never truncate with cleanString.
+      const raw2 = typeof raw === "string" ? raw.trim() : "";
+      payload[field.name] = raw2 || null;
     } else {
       const value = cleanString(raw);
       if (field.required && value.length < 1)

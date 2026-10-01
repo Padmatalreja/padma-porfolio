@@ -19,7 +19,9 @@ export function ProfileVisual({ name, src, size = "md", priority = false }: Prop
   // Width adapts responsively; height is locked by aspect-ratio so the card
   // never resizes based on what image is uploaded.
   const maxW = size === "lg" ? "max-w-sm" : "max-w-[340px]";
-  const isLocalUpload = src?.startsWith("/uploads/");
+  // Skip Next.js image optimisation for local uploads and base64 data-URLs —
+  // the optimiser cannot process either format on Vercel serverless.
+  const isLocalUpload = src?.startsWith("/uploads/") || src?.startsWith("data:");
 
   return (
     <div className={`relative w-full ${maxW} mx-auto`}>
